@@ -32,27 +32,27 @@
       },
       "constraints": {
         "quota_type": "exact_per_valid_day",
-        "total_cycle_hours": 6,
         "uniformity_spacing": false
       }
     },
     {
-      "id": "w_res_sum",
+      "id": "WHITE_SLOT_SUMMER",
       "duration_hours": 2,
       "valid_months": [4, 5, 6, 7, 8, 9, 10, 11],
       "valid_days_of_week": [0, 1, 2, 3, 4, 5, 6],
       "timing": {
         "mode": "ist_start_times",
-        "allowed_start_hours": [9, 11, 13, 15]
+        "allowed_start_hours": [9, 11, 13,15]
       },
       "constraints": {
-        "quota_type": "flexible_cycle_quota",
-        "total_cycle_hours": 24,
+        "quota_type": "exact_per_allowed_hour",
+        "repetitions_per_slot": 3,
+        "max_per_day": 1,
         "uniformity_spacing": true
       }
     },
     {
-      "id": "w_res_win",
+      "id": "WHITE_SLOT_WINTER",
       "duration_hours": 2,
       "valid_months": [12, 1, 2, 3],
       "valid_days_of_week": [0, 1, 2, 3, 4, 5, 6],
@@ -61,8 +61,9 @@
         "allowed_start_hours": [15]
       },
       "constraints": {
-        "quota_type": "flexible_cycle_quota",
-        "total_cycle_hours": 10,
+        "quota_type": "exact_per_allowed_hour",
+        "repetitions_per_slot": 3,
+        "max_per_day": 1,
         "uniformity_spacing": true
       }
     }

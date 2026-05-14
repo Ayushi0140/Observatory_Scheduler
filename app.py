@@ -1,6 +1,7 @@
 import csv
 import json
 import ast
+import argparse
 from flask import Flask, render_template
 from datetime import datetime, timedelta
 from astropy.time import Time
@@ -11,7 +12,7 @@ app = Flask(__name__)
 #Longitude for Ooty Radio Telescope
 OBS_LON = 76.6667 * u.deg
 
-def load_project_metadata(filename='pro_info_v5.csv'):
+def load_project_metadata(filename='projects.csv'):
     projects_dict = {}
     try:
         with open(filename, mode='r', encoding='utf-8-sig') as file:
@@ -77,26 +78,29 @@ def get_lst_str(lst_float):
 
 @app.route('/')
 def schedule():
+    # Retrieve the filenames from Flask's config
+    schedule_file = app.config.get('SCHEDULE_FILE', 'schedule_output.csv')
+    metadata_file = app.config.get('METADATA_FILE', 'projects.csv')
+
     # --- LOAD SCHEDULE DATA ---
     observation_data = []
-    start_date_str = None  # To capture the date from the CSV
+    start_date_str = None  
     
     try:
-        with open('schedule_output.csv', mode='r', encoding='utf-8') as file:
+        with open(schedule_file, mode='r', encoding='utf-8') as file:
             reader = csv.reader(file)
             next(reader) # Skip IST Headers
             next(reader) # Skip LST Headers
             for row in reader:
                 if row:
                     if start_date_str is None:
-                        # Grab the date string from the very first data row (e.g., "Thu 14May2026")
                         start_date_str = row[0]
                     observation_data.append(row[1:25])
     except FileNotFoundError:
-        return "Error: 'schedule_output.csv' not found."
+        return f"Error: '{schedule_file}' not found." # Updated error message
 
     if not start_date_str:
-        return "Error: 'schedule_output.csv' contains no data rows."
+        return f"Error: '{schedule_file}' contains no data rows." # Updated error message
 
     # --- CALCULATE STATS FOR DASHBOARD ---
     schedule_flat = [slot for day_row in observation_data for slot in day_row]
@@ -110,10 +114,11 @@ def schedule():
     project_hours = total_slots - maintenance_hours - free_hours - white_hours - crab_hours
 
     # --- LOAD PROJECT METADATA FROM CSV ---
-    project_metadata_dict = load_project_metadata('pro_info_v5.csv')
+    project_metadata_dict = load_project_metadata(metadata_file)
 
-    # --- TIME & DATE SETUP (DYNAMIC NOW) ---
-    # Convert the extracted string "Thu 14May2026" into a Python datetime object
+
+    # --- TIME & DATE SETUP (DYNAMIC) ---
+    # Convert the extracted string into a Python datetime object
     start_ist = datetime.strptime(start_date_str, "%a %d%b%Y")
     start_date_iso = start_ist.strftime("%Y-%m-%dT%H:%M:%S+05:30")
     
@@ -137,7 +142,7 @@ def schedule():
             day_lsts.append(f"{get_lst_str(lst_s)} - {get_lst_str(lst_e)}")
         exact_lst_ranges.append(day_lsts)
     
-    return render_template('calendar_v4.html', 
+    return render_template('calendar.html', 
                            data=observation_data, 
                            days=days, 
                            ist_hours=ist_hours,
@@ -153,4 +158,21 @@ def schedule():
                            proj_hours=project_hours)
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5001)
+    # 1. Set up the argument parser
+    parser = argparse.ArgumentParser(description="Run the ORT Schedule Web Dashboard")
+    
+    # Optional arguments with your original hardcoded files as defaults
+    parser.add_argument('--schedule', type=str, default='schedule_output.csv', help='Path to the scheduled CSV file')
+    parser.add_argument('--projects', type=str, default='projects.csv', help='Path to the projects metadata CSV file')
+    parser.add_argument('--port', type=int, default=5001, help='Port to run the Flask app on')
+    
+    args = parser.parse_args()
+
+    # 2. Store the parsed arguments inside Flask's global config dictionary
+    app.config['SCHEDULE_FILE'] = args.schedule
+    app.config['METADATA_FILE'] = args.projects
+    
+    print(f"Starting server reading from '{args.schedule}' and '{args.projects}'...")
+
+    # 3. Run the app
+    app.run(debug=True, port=args.port)

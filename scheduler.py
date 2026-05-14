@@ -1,11 +1,10 @@
-#Check if ort is open source
-
 #Imports necessary for this code, make sure you are running the code on an environment that has these libraries installed.
 import csv
 import os
 import json
 import datetime
 import math
+import argparse
 import numpy as np
 from ortools.sat.python import cp_model
 from astropy.time import Time
@@ -76,12 +75,12 @@ def load_projects_from_csv(filepath):
                         s, e = r.split('-')
                         lst_ranges.append((float(s.strip()), float(e.strip())))
             
-            # PARSE STRICT TIMES (Updated for the new format without dashes)
+            
             strict_str = row.get('strict_time', '')
             strict_time = []
             if strict_str and strict_str.lower() != 'none':
                 for window in strict_str.split(';'):
-                    # We no longer check for a dash '-', we just grab the start time string
+                    
                     strict_time.append(window.strip())
             else:
                 strict_time = -1 # Set to -1 for the OR-Tools algorithm if no strict time exists
@@ -126,8 +125,11 @@ def save_schedule_to_csv(schedule, start_date_str, filepath, days=14):
             writer.writerow([date_str] + schedule[start_idx:end_idx])
 
 
+#--------------------------------------------------------------
+#--------------------------------------------------------------
+
 # --- THE GLOBAL OR-TOOLS OPTIMIZER ---
-def generate_schedule(start_date_str, projects, days=14, slot_lengths=1, obs_string="observatory_rules_final.json", time_limit=600, relative_gap=1e-6):
+def generate_schedule(start_date_str, projects, days=14, slot_lengths=1, obs_string="observatory_rules.json", time_limit=600, relative_gap=1e-6):
     rules = load_observatory_rules(obs_string) 
     #Calculate total number of slots based on the number of days and slot length, and initialize the schedule with 'w' for white (available) slots. Also, precompute the LST for each time slot to speed up later checks.
     start_date = datetime.datetime.strptime(start_date_str, "%Y-%m-%d")
@@ -393,23 +395,40 @@ def generate_schedule(start_date_str, projects, days=14, slot_lengths=1, obs_str
     
     return schedule, task_hours_used
 
+#--------------------------------------------------------------
+#--------------------------------------------------------------
 
 # --- EXECUTION ---
 if __name__ == "__main__":
-    cycle_start_date = "2026-05-14"
-    days = 14
+    # 1. Set up the argument parser
+    parser = argparse.ArgumentParser(description="Generate ORT Observing Schedule")
     
-    print("Loading projects from 'pro_info_v5.csv'...")
+    # Required positional argument for the start date
+    parser.add_argument("cycle_start_date", type=str, help="Start date of the cycle in YYYY-MM-DD format (Required)")
+    
+    # Optional argument for the input file, defaulting to "projects.csv"
+    parser.add_argument("--input", type=str, default="projects.csv", help="Input CSV file name (default: projects.csv)")
+    
+    parser.add_argument("--days", type=int, default=14, help="Number of days to schedule (default: 14)")
+
+    args = parser.parse_args()
+
+    # 2. Assign the parsed arguments to variables
+    cycle_start_date = args.cycle_start_date
+    input_file = args.input
+    output_file = f"schedule_{cycle_start_date}.csv" # Dynamically name the output file
+    days = args.days
+    
+    print(f"Loading projects from '{input_file}'...")
     try:
-        active_projects = load_projects_from_csv("pro_info_v5.csv")
+        active_projects = load_projects_from_csv(input_file)
     except FileNotFoundError:
-        print("ERROR: Could not find 'pro_info_v5.csv'. Please check your filename.")
+        print(f"ERROR: Could not find '{input_file}'. Please check your filename.")
         exit()
 
-    # FIX 1: Explicitly pass the correct JSON filename! We use "_" to ignore the combined task hours variable.
-    final_schedule, _ = generate_schedule(cycle_start_date, active_projects, days, obs_string="observatory_rules_final.json")
+    
+    final_schedule, _ = generate_schedule(cycle_start_date, active_projects, days, obs_string="observatory_rules.json")
 
-    # FIX 2: Count everything directly from the final array to prevent double-counting bugs
     total_slots = len(final_schedule)
     maintenance_slots = final_schedule.count('b')
     crab_hours = final_schedule.count('CRAB')
@@ -425,7 +444,7 @@ if __name__ == "__main__":
     print(f"Project Time:         {scheduled_proj_slots} hours")
     print(f"Secured White Slots:  {white_slots_secured} hours")
     
-    # Save directly to the CSV that your web app reads
-    save_schedule_to_csv(final_schedule, cycle_start_date, "schedule_output.csv", days)
-    print("Schedule successfully saved to 'schedule_output.csv' for the web interface.")
+    
+    save_schedule_to_csv(final_schedule, cycle_start_date, output_file, days)
+    print(f"Schedule successfully saved to '{output_file}' for the web interface.")
     print(f"Total Requested Observing Time: {sum(proj['time_per_rep'] * proj['repetitions'] for proj in active_projects)} hours")
