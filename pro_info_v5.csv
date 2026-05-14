@@ -1,0 +1,8 @@
+id,time_per_rep,repetitions,lst_ranges,mode,backend,contact,time_remaining,priority,strict_time,min_gap_days,pi_name
+P26_001,6,8,4.0-11.0,tracking,PONDER,xyz@gmail.com,100,1,none,0,Pulak
+P26_002,4,10,8.0-13.0,drifting,PONDER,abc@gmail.com,100,2,none,0,Ayushi
+I26_003,3,12,12.0-16.0,tracking,Other,123@gmail.com,60,2,none,0,Krishnakumar
+V26_004,3,8,19.5-23.3,tracking,Other,pqr@gmail.com,50,3,none,0,Hardik
+V26_005,3,6,1.0-5.0,tracking,Other,pqr@gmail.com,500,1,none,0,Yogesh
+V26_006,2,6,19.0-23.0,tracking,Other,pqr@gmail.com,500,1,none,0,Arun
+S26_001,2,2,21.0-1.0,tracking,Other,test@gmail.com,100,1,28 04 2026 19 00 00 ; 30 04 2026 08 00 00,0,Stickman

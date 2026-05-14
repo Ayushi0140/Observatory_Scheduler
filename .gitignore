@@ -1,0 +1,17 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environments
+venv/
+env/
+.env
+
+# Generated Output files (Optional: comment out if you want to commit the generated schedule)
+schedule_output.csv
+
+# IDE / OS specific files
+.vscode/
+.idea/
+.DS_Store

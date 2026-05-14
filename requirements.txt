@@ -1,0 +1,10 @@
+---
+
+### 3. `requirements.txt`
+Save this as `requirements.txt` in the root directory. It lists all the external libraries your code relies on.
+
+```text
+Flask==3.0.3
+ortools==9.9.3963
+astropy==6.1.0
+numpy==1.26.4

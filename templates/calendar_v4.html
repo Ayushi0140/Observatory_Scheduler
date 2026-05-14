@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ORT Observing Schedule</title>
+    <style>
+        body { 
+            font-family: 'Times New Roman', Times, serif; 
+            background: #fff; 
+            padding: 10px; 
+            margin: 0;
+            font-size: 14px;
+        }
+        h2 { text-align: center; color: #000; margin-bottom: 5px; }
+        
+        /* Live Clock Styling */
+        #current-time-display {
+            text-align: center;
+            font-size: 16px;
+            font-weight: bold;
+            color: #8e0c0c;
+            margin-bottom: 15px;
+            font-family: Arial, sans-serif;
+        }
+
+        /* NEW: Dashboard Stats Styling */
+        .dashboard-stats {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .stat-card {
+            background: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 10px 20px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            min-width: 120px;
+        }
+        .stat-title {
+            font-size: 11px;
+            color: #666;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+            font-weight: bold;
+            letter-spacing: 0.5px;
+        }
+        .stat-value {
+            font-size: 18px;
+            color: #2c3e50;
+            font-weight: bold;
+        }
+
+        .calendar-container {
+            display: grid;
+            grid-template-columns: 110px repeat(24, minmax(35px, 1fr)) 110px; 
+            gap: 1px;
+            background-color: #777; 
+            border: 2px solid #000;
+            overflow-x: auto;
+        }
+
+        .cell {
+            padding: 5px 2px;
+            background: white;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-sizing: border-box;
+            font-weight: bold;
+            position: relative;
+            font-size: 11px;
+        }
+        
+        .data-slot {
+            cursor: pointer;
+        }
+
+        .header-cell { background: #f0f0f0; }
+        .date-col-left, .date-col-right { 
+            background: #fff; 
+            position: sticky; 
+            z-index: 2; 
+            white-space: nowrap; 
+        }
+        .date-col-left { left: 0; border-right: 2px solid #000; }
+        .date-col-right { right: 0; border-left: 2px solid #000; }
+        .corner-left { background: #e0e0e0; position: sticky; left: 0; z-index: 3; border-right: 2px solid #000;}
+        .corner-right { background: #e0e0e0; position: sticky; right: 0; z-index: 3; border-left: 2px solid #000;}
+
+        .blinking-dot {
+            width: 10px;
+            height: 10px;
+            background-color: red;
+            border-radius: 50%;
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            animation: blinker 1s linear infinite;
+            box-shadow: 0 0 4px red;
+            z-index: 5;
+        }
+        @keyframes blinker { 50% { opacity: 0; } }
+
+        /* Progress Bar Pulse/Blink Effect */
+        @keyframes pulse-progress {
+            0% { filter: brightness(1); }
+            50% { filter: brightness(1.35); }
+            100% { filter: brightness(1); }
+        }
+        .blinking-progress {
+            animation: pulse-progress 1.5s ease-in-out infinite;
+        }
+
+        /* Tooltip Styling */
+        #tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.85);
+            color: #fff;
+            padding: 12px;
+            border-radius: 6px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 13px;
+            pointer-events: none;
+            display: none;
+            z-index: 1000;
+            box-shadow: 0px 4px 8px rgba(0,0,0,0.4);
+            white-space: nowrap;
+            line-height: 1.5;
+        }
+        #tooltip strong { color: #80c4ff; }
+    </style>
+</head>
+<body>
+
+    <h2>Ooty Radio Telescope Observing Schedule</h2>
+    
+    <div id="current-time-display">Loading time...</div>
+
+    <div class="dashboard-stats">
+        <div class="stat-card" style="border-left: 4px solid #777;">
+            <div class="stat-title">Total Span</div>
+            <div class="stat-value">{{ total_hours }} hrs</div>
+        </div>
+        <div class="stat-card" style="border-left: 4px solid #000;">
+            <div class="stat-title">Maintenance</div>
+            <div class="stat-value">{{ maint_hours }} hrs</div>
+        </div>
+        <div class="stat-card" style="border-left: 4px solid #4169e1;">
+            <div class="stat-title">Crab Pulsar</div>
+            <div class="stat-value">{{ crab_hours }} hrs</div>
+        </div>
+        <div class="stat-card" style="border-left: 4px solid #808080;">
+            <div class="stat-title">White Slots</div>
+            <div class="stat-value">{{ white_hours }} hrs</div>
+        </div>
+        <div class="stat-card" style="border-left: 4px solid #ddd;">
+            <div class="stat-title">Free Time</div>
+            <div class="stat-value">{{ free_hours }} hrs</div>
+        </div>
+        <div class="stat-card" style="border-left: 4px solid #2ecc71;">
+            <div class="stat-title">Project Time</div>
+            <div class="stat-value">{{ proj_hours }} hrs</div>
+        </div>
+    </div>
+
+    <p style="text-align: center; font-size: 12px; color: #666; margin-top: 0;">
+        <i>Note: Click anywhere on this page to start the transition alarm. Observation progress updates every 20s.<br>
+        <strong>Hover over blocks for quick details, or click a block for full project information.</strong></i>
+    </p>
+
+    <div id="tooltip"></div>
+
+    <div class="calendar-container">
+        
+        <div class="cell corner-left">IST Hour</div>
+        {% for ist in ist_hours %}
+            <div class="cell header-cell">{{ ist }}</div>
+        {% endfor %}
+        <div class="cell corner-right">IST Hour</div>
+
+        <div class="cell corner-left">LST Approx</div>
+        {% for lst in lst_hours %}
+            <div class="cell header-cell">{{ lst }}</div>
+        {% endfor %}
+        <div class="cell corner-right">LST Approx</div>
+
+        {% for i in range(14) %}
+            <div class="cell date-col-left">{{ days[i] }}</div>
+            
+            {% for j in range(24) %}
+                {% set slot = data[i][j] %}
+                
+                {% set hue = (slot[-3:] | int(default=1) * 137) % 360 %}
+                {% set flat_index = i * 24 + j %}
+                
+                {% if slot | lower in ['b', 'black', 'w', 'white'] %}
+                    {% set bg_color = '#000' if slot|lower in ['b','black'] else '#fff' %}
+                    {% set text_color = '#fff' if slot|lower in ['b','black'] else '#000' %}
+                    {% set style_attr = "background-color: " ~ bg_color ~ "; color: " ~ text_color ~ ";" %}
+                    {% set color_light = bg_color %}
+                    {% set color_dark = text_color %}
+                {% elif slot | lower == 'test' %}
+                    {% set style_attr = "background-color: #d3d3d3; color: #000;" %}
+                    {% set color_light = "#d3d3d3" %}
+                    {% set color_dark = "#999999" %}
+                    
+                {% elif 'white_re' in slot | lower %}
+                    {% set style_attr = "background-color: #c0c0c0; color: #000;" %}
+                    {% set color_light = "#c0c0c0" %}
+                    {% set color_dark = "#808080" %}  
+                    
+                {% elif 'crab' in slot | lower %}
+                    {% set style_attr = "background-color: #add8e6; color: #000;" %}
+                    {% set color_light = "#add8e6" %}
+                    {% set color_dark = "#4169e1" %}  
+                    
+                {% else %}
+                    {% set style_attr = "background-color: hsl(" ~ hue ~ ", 75%, 80%); color: #000;" %}
+                    {% set color_light = "hsl(" ~ hue ~ ", 75%, 80%)" %}
+                    {% set color_dark = "hsl(" ~ hue ~ ", 75%, 55%)" %}
+                {% endif %}
+                
+                <div class="cell data-slot" 
+                     data-index="{{ flat_index }}"
+                     data-day="{{ i }}" 
+                     data-hour="{{ j }}" 
+                     data-slot="{{ slot }}"
+                     data-lst-exact="{{ exact_lst_ranges[i][j] }}"
+                     data-color-light="{{ color_light }}"
+                     data-color-dark="{{ color_dark }}"
+                     style="{{ style_attr }}"
+                     >
+                     
+                    {% if slot | lower not in ['b', 'black', 'w', 'white'] %}
+                        {% if j == 0 or slot != data[i][j-1] %}
+                            {{ slot }}
+                        {% endif %}
+                    {% endif %}
+                    
+                </div>
+            {% endfor %}
+            <div class="cell date-col-right">{{ days[i] }}</div>
+        {% endfor %}
+
+    </div>
+
+    <script>
+        const startDate = new Date("{{ start_date_iso }}");
+        let lastActiveCell = null;
+        const alarmSound = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
+
+        const projectMetadata = JSON.parse('{{ project_metadata | safe }}');
+        const dateOptions = { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false };
+        const tooltip = document.getElementById('tooltip');
+
+        // Live Clock Function
+        function updateClock() {
+            const now = new Date();
+            const options = { 
+                weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', 
+                hour: '2-digit', minute: '2-digit', second: '2-digit', timeZoneName: 'short' 
+            };
+            document.getElementById('current-time-display').innerText = now.toLocaleDateString('en-IN', options);
+        }
+        setInterval(updateClock, 1000);
+        updateClock(); // Run immediately on load
+
+        // Centralized function to extract data for both Tooltip and Click events
+        function getCellData(cell) {
+            const slotCode = cell.getAttribute('data-slot');
+            const day = parseInt(cell.getAttribute('data-day'));
+            const hour = parseInt(cell.getAttribute('data-hour'));
+            const cellTime = new Date(startDate.getTime() + ((day * 24 + hour) * 3600000));
+            
+            const istString = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', ...dateOptions }).format(cellTime);
+            const utcString = new Intl.DateTimeFormat('en-GB', { timeZone: 'UTC', ...dateOptions }).format(cellTime);
+            const exactLstStr = cell.getAttribute('data-lst-exact');
+            
+            let displayId = slotCode;
+            let lowerSlot = slotCode.toLowerCase();
+            if (lowerSlot === 'b' || lowerSlot === 'black') displayId = 'Maintenance (Black)';
+            else if (lowerSlot === 'w' || lowerSlot === 'white') displayId = 'Free Slot (White)';
+            else if (lowerSlot === 'white_re' || lowerSlot === 'white_res') displayId = 'Free Slot (White)';
+            else if (lowerSlot === 'crab') displayId = 'CRAB Calibrator';
+
+            const meta = projectMetadata[slotCode] || {};
+            
+            return { slotCode, displayId, istString, utcString, exactLstStr, meta };
+        }
+
+        document.querySelectorAll('.data-slot').forEach(cell => {
+            cell.addEventListener('mouseenter', (e) => {
+                const data = getCellData(cell);
+                tooltip.innerHTML = `
+                    <strong>Project ID:</strong> ${data.displayId}<br>
+                    <strong>PI Name:</strong> ${data.meta.pi_name || 'N/A'}<br>
+                    <strong>IST:</strong> ${data.istString} IST<br>
+                    <strong>UTC:</strong> ${data.utcString} UTC<br>
+                    <strong>LST:</strong> ${data.exactLstStr}<br>
+                    <strong>Mode:</strong> ${data.meta.Mode || 'N/A'}<br>
+                    <strong>Backend:</strong> ${data.meta.backend || 'N/A'}
+                `;
+                tooltip.style.display = 'block';
+            });
+
+            cell.addEventListener('mousemove', (e) => {
+                let tooltipX = e.pageX + 15;
+                let tooltipY = e.pageY + 15;
+    
+                if (tooltipX + tooltip.offsetWidth > window.innerWidth + window.scrollX) {
+                    tooltipX = e.pageX - tooltip.offsetWidth - 15;
+                }
+                if (tooltipY + tooltip.offsetHeight > window.innerHeight + window.scrollY) {
+                    tooltipY = e.pageY - tooltip.offsetHeight - 15;
+                }
+
+                tooltip.style.left = tooltipX + 'px';
+                tooltip.style.top = tooltipY + 'px';
+            });
+
+            cell.addEventListener('mouseleave', () => {
+                tooltip.style.display = 'none';
+            });
+
+            cell.addEventListener('click', () => {
+                const data = getCellData(cell);
+                
+                let lstRangesDisplay = "None";
+                if (data.meta.lst_ranges && Array.isArray(data.meta.lst_ranges) && data.meta.lst_ranges.length > 0) {
+                    lstRangesDisplay = data.meta.lst_ranges.map(r => `${r[0]} - ${r[1]}`).join(' ; ');
+                }
+
+                let strictTimeDisplay = "None";
+                if (data.meta.strict_time && Array.isArray(data.meta.strict_time) && data.meta.strict_time.length > 0) {
+                    strictTimeDisplay = data.meta.strict_time.join('<br>');
+                }
+
+                const newWindow = window.open('', '_blank');
+                newWindow.document.write(`
+                    <!DOCTYPE html>
+                    <html lang="en">
+                    <head>
+                        <title>Observation Details: ${data.displayId}</title>
+                        <style>
+                            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; background: #f4f4f9; color: #333; margin: 0; }
+                            .container { max-width: 800px; margin: 0 auto; background: #fff; padding: 30px 50px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+                            h1 { text-align: center; color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 15px; margin-bottom: 30px; }
+                            table { border-collapse: collapse; width: 100%; margin-bottom: 20px; }
+                            th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #ddd; }
+                            th { background-color: #f8f9fa; color: #2c3e50; width: 35%; font-weight: 600; }
+                            tr:hover { background-color: #f1f5f9; }
+                            .section-title { background-color: #2c3e50; color: white; text-align: center; font-size: 1.1em; letter-spacing: 1px; }
+                            .close-btn { display: block; width: 200px; margin: 30px auto 0; padding: 10px; text-align: center; background: #e74c3c; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; font-weight: bold; }
+                            .close-btn:hover { background: #c0392b; }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="container">
+                            <h1>Observation Details: ${data.displayId}</h1>
+                            <table>
+                                <tr><th colspan="2" class="section-title">Schedule Block Timing</th></tr>
+                                <tr><th>IST Start Time</th><td>${data.istString}</td></tr>
+                                <tr><th>UTC Start Time</th><td>${data.utcString}</td></tr>
+                                <tr><th>Exact LST Range</th><td>${data.exactLstStr}</td></tr>
+                            </table>
+                            
+                            <table>
+                                <tr><th colspan="2" class="section-title">Project Information</th></tr>
+                                <tr><th>Project ID</th><td>${data.displayId}</td></tr>
+                                <tr><th>Principal Investigator</th><td>${data.meta.pi_name || 'N/A'}</td></tr>
+                                <tr><th>Mode</th><td>${data.meta.Mode || 'N/A'}</td></tr>
+                                <tr><th>Backend</th><td>${data.meta.backend || 'N/A'}</td></tr>
+                                <tr><th>Contact Email</th><td><a href="mailto:${data.meta.contact || ''}">${data.meta.contact || 'N/A'}</a></td></tr>
+                                <tr><th>Priority Level</th><td>${data.meta.priority || 'N/A'}</td></tr>
+                                <tr><th>Time per Repetition</th><td>${data.meta.time_per_rep ? data.meta.time_per_rep + ' Hours' : 'N/A'}</td></tr>
+                                <tr><th>Total Requested Reps</th><td>${data.meta.repetitions || 'N/A'}</td></tr>
+                                <tr><th>Time Remaining</th><td>${data.meta.time_remaining ? data.meta.time_remaining + ' Hours' : 'N/A'}</td></tr>
+                                
+                                <tr><th>Requested LST Ranges</th><td>${lstRangesDisplay}</td></tr>
+                                <tr><th>Strict Time Slots</th><td>${strictTimeDisplay}</td></tr>
+                            </table>
+                            
+                            <button class="close-btn" onclick="window.close()">Close Tab</button>
+                        </div>
+                    </body>
+                    </html>
+                `);
+                newWindow.document.close();
+            });
+        });
+
+      // Tracking and Progress Bar Logic
+        function updateScheduleTracker() {
+            const now = new Date();
+            const diffMs = now - startDate;
+            const totalHoursElapsed = diffMs / (1000 * 60 * 60);
+            
+            if (totalHoursElapsed >= 0 && totalHoursElapsed < (14 * 24)) {
+                const activeIndex = Math.floor(totalHoursElapsed);
+                const currentCell = document.querySelector(`.cell[data-index='${activeIndex}']`);
+
+                if (currentCell && currentCell !== lastActiveCell) {
+                    if (lastActiveCell) {
+                        const oldDot = lastActiveCell.querySelector('.blinking-dot');
+                        if (oldDot) oldDot.remove();
+
+                        const oldProject = lastActiveCell.getAttribute('data-slot');
+                        const newProject = currentCell.getAttribute('data-slot');
+                        
+                        if (oldProject !== newProject) {
+                            alarmSound.play().catch(e => console.log("Audio play blocked until user interaction."));
+                        }
+                    }
+
+                    const dot = document.createElement('div');
+                    dot.className = 'blinking-dot';
+                    currentCell.appendChild(dot);
+                    lastActiveCell = currentCell;
+                }
+                
+                // Clear any existing color and blink classes before recalculating
+                document.querySelectorAll('.data-slot').forEach(cell => {
+                    cell.classList.remove('blinking-progress');
+                    if (cell.dataset.colorLight) {
+                        cell.style.background = cell.dataset.colorLight;
+                    }
+                });
+
+                if (currentCell) {
+                    const currentSlotCode = currentCell.getAttribute('data-slot');
+                    const isSpecialCode = ['b', 'black', 'w', 'white'].includes(currentSlotCode.toLowerCase());
+                    
+                    if (!isSpecialCode) {
+                        let startIndex = activeIndex;
+                        while (startIndex > 0) {
+                            const prevCell = document.querySelector(`.cell[data-index='${startIndex - 1}']`);
+                            if (prevCell && prevCell.getAttribute('data-slot') === currentSlotCode) {
+                                startIndex--;
+                            } else break;
+                        }
+                        
+                        let endIndex = activeIndex;
+                        while (endIndex < 335) {
+                            const nextCell = document.querySelector(`.cell[data-index='${endIndex + 1}']`);
+                            if (nextCell && nextCell.getAttribute('data-slot') === currentSlotCode) {
+                                endIndex++;
+                            } else break;
+                        }
+                        
+                        const blockDurationHours = (endIndex - startIndex + 1);
+                        
+                        if (blockDurationHours >= 1) {
+                            const blockStartTimeMs = startDate.getTime() + (startIndex * 3600000);
+                            const blockDurationMs = blockDurationHours * 3600000;
+                            const elapsedMs = now.getTime() - blockStartTimeMs;
+                            const progressFraction = Math.max(0, Math.min(1, elapsedMs / blockDurationMs));
+                            
+                            for (let i = startIndex; i <= endIndex; i++) {
+                                const cell = document.querySelector(`.cell[data-index='${i}']`);
+                                const cellStartFrac = (i - startIndex) / blockDurationHours;
+                                const cellEndFrac = (i + 1 - startIndex) / blockDurationHours;
+                                
+                                const colorLight = cell.getAttribute('data-color-light');
+                                const colorDark = cell.getAttribute('data-color-dark');
+                                
+                                cell.classList.add('blinking-progress');
+                                
+                                if (progressFraction >= cellEndFrac) {
+                                    // Block fully complete
+                                    cell.style.background = colorDark;
+                                } else if (progressFraction <= cellStartFrac) {
+                                    // Block not started yet
+                                    cell.style.background = colorLight;
+                                } else {
+                                    // Block currently filling - apply gradient
+                                    const cellFillFrac = (progressFraction - cellStartFrac) / (1 / blockDurationHours);
+                                    const fillPercent = cellFillFrac * 100;
+                                    cell.style.background = `linear-gradient(to right, ${colorDark} ${fillPercent}%, ${colorLight} ${fillPercent}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        updateScheduleTracker();
+        setInterval(updateScheduleTracker, 20000);
+    </script>
+
+</body>
+</html>
