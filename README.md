@@ -1,8 +1,18 @@
-# ORT Automated Scheduling System
+# Automated Scheduling System for Observatories
 
-An automated, constraint-based observation scheduling system and interactive web dashboard for the Ooty Radio Telescope (ORT). 
+An automated, constraint-based observation scheduling system and interactive web dashboard designed for the Ooty Radio Telescope (ORT). 
 
 This project utilizes Google's OR-Tools (CP-SAT solver) to generate optimal observing schedules based on dynamic project requests, specific LST (Local Sidereal Time) ranges, and observatory downtime/maintenance rules. The generated schedule is then visualized using a Flask-based interactive web calendar.
+
+Sequence of commands:
+1. Add projects.csv file.
+2. Edit Observatory_rules.json
+3. Run "python3 scheduler.py"
+4. Run "python3 app.py"
+5. Copy the weblink to your web browser for visualising schedule.
+
+#Note: For spontaneous/urgent request for any observation simply change the the white slot is schedule_output.csv.
+
 
 ## Features
 * **Algorithmic Scheduling:** Uses integer programming to resolve scheduling conflicts, respect minimum gap days, and maximize priority observation time.
